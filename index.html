@@ -1,12 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
-	<meta charset="UTF-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Portfolio</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC 실시간 OCR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.0.2/tesseract.min.js"></script>
 </head>
 <body>
-  <p>Hello, World!</p>
+
+    <button id="startCapture">화면 공유 시작</button>
+    <video id="videoElement" autoplay playsinline></video>
+    <canvas id="canvasElement" style="display:none;"></canvas>
+    <canvas id="cropCanvas" style="display:none;"></canvas>  <!-- OCR 영역만 담을 캔버스 -->
+    <p>OCR 결과:</p>
+    <textarea id="ocrResult" rows="5" cols="50"></textarea>
+
+    <script>
+        let videoElement = document.getElementById("videoElement");
+        let canvasElement = document.getElementById("canvasElement");
+        let cropCanvas = document.getElementById("cropCanvas"); // OCR 영역 캔버스
+        let startCaptureButton = document.getElementById("startCapture");
+        let ocrResult = document.getElementById("ocrResult");
+        let stream;
+        let isOCRRunning = false;  // OCR이 진행 중인지 여부
+        let ocrInterval;  // OCR 실행 타이머
+
+        // ✅ 1. 화면 공유 시작
+        startCaptureButton.addEventListener("click", async () => {
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                videoElement.srcObject = stream;
+
+                // OCR을 주기적으로 실행 (예: 2초마다 실행)
+                ocrInterval = setInterval(runOCR, 2000);  
+
+                startCaptureButton.disabled = true; // 버튼 비활성화
+            } catch (err) {
+              //  alert("화면 공유 실패: " + err.message);
+            }
+        });
+
+        // ✅ 2. OCR 실행 함수 (실시간으로 실행)
+        async function runOCR() {
+            if (isOCRRunning) return; // OCR이 실행 중이면 중복 실행 방지
+            isOCRRunning = true;
+
+            let ctx = canvasElement.getContext("2d");
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            
+            // 🔹 비디오 프레임 캡처
+            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+            // 🔹 OCR할 특정 영역 설정 (예: x=100, y=150, width=300, height=100)
+            let cropX = 84;  // X 좌표 (왼쪽에서 100px)
+            let cropY = 172;  // Y 좌표 (위에서 150px)
+            let cropWidth = 176;  // 너비 300px
+            let cropHeight = 31; // 높이 100px
+
+
+            // ✅ 특정 영역을 잘라서 cropCanvas에 복사
+            let cropCtx = cropCanvas.getContext("2d");
+            cropCanvas.width = cropWidth;
+            cropCanvas.height = cropHeight;
+            cropCtx.drawImage(canvasElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+            // ✅ Tesseract.js로 OCR 실행 (비동기 처리)
+            Tesseract.recognize(
+                cropCanvas,  // 전체가 아닌 특정 영역만 OCR 실행
+                "eng", // 한국어 + 영어 지원
+                {
+                    logger: m => console.log(m),
+                    tessedit_char_whitelist: "0123456789[]()" // ✅ 숫자(0~9)만 인식하도록 설정
+                }
+            ).then(({ data: { text } }) => {
+                ocrResult.value = text; // OCR 결과 표시
+                isOCRRunning = false;  // OCR 실행 완료 후 다시 실행 가능
+            }).catch(err => {
+                console.error("OCR 오류: ", err);
+                isOCRRunning = false;  // 오류 발생 시 OCR 재시작 가능
+            });
+        }
+
+    </script>
+
 </body>
 </html>
