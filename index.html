@@ -1,4 +1,21 @@
-<script>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC 실시간 OCR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.0.2/tesseract.min.js"></script>
+</head>
+<body>
+
+    <button id="startCapture">화면 공유 시작</button>
+    <video id="videoElement" autoplay playsinline></video>
+    <canvas id="canvasElement" style="display:none;"></canvas>
+    <canvas id="cropCanvas" style="display:none;"></canvas>  <!-- OCR 영역만 담을 캔버스 -->
+    <p>OCR 결과:</p>
+    <textarea id="ocrResult" rows="5" cols="50"></textarea>
+
+  <script>
     let videoElement = document.getElementById("videoElement");
     let canvasElement = document.getElementById("canvasElement");
     let cropCanvas = document.getElementById("cropCanvas"); // OCR 영역 캔버스
@@ -91,3 +108,8 @@
         }
     }
 </script>
+</body>
+</html>
+
+
+
