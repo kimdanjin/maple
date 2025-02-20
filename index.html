@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebRTC 실시간 OCR</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.0.2/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/6.0.0/tesseract.min.js" integrity="sha512-A0EfwPGHRuABn5Tj6XKUwAy966qF1ZLfsz2rtDriABefNTW3HYoE8v2u3ILnBlK3FTnmYnzeG1cMkwuaHmxAkw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
 
@@ -14,6 +14,8 @@
     <canvas id="cropCanvas" ></canvas>  <!-- OCR 영역만 담을 캔버스 -->
     <p>OCR 결과:</p>
     <textarea id="ocrResult" rows="5" cols="50"></textarea>
+    <p>이전 OCR 값: <span id="previousValue">없음</span></p>
+    <p>1분 동안의 변화: <span id="difference">0</span></p>
 
     <script>
         let videoElement = document.getElementById("videoElement");
@@ -21,9 +23,14 @@
         let cropCanvas = document.getElementById("cropCanvas"); // OCR 영역 캔버스
         let startCaptureButton = document.getElementById("startCapture");
         let ocrResult = document.getElementById("ocrResult");
+        let previousValueDisplay = document.getElementById("previousValue");
+        let differenceDisplay = document.getElementById("difference");
+        
         let stream;
         let isOCRRunning = false;  // OCR이 진행 중인지 여부
         let ocrInterval;  // OCR 실행 타이머
+        let previousValue = null;  // 이전 OCR 값
+        let lastTimestamp = Date.now(); // 마지막 OCR 실행 시간
 
         // ✅ 1. 화면 공유 시작
         startCaptureButton.addEventListener("click", async () => {
@@ -31,16 +38,16 @@
                 stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 videoElement.srcObject = stream;
 
-                // OCR을 주기적으로 실행 (예: 2초마다 실행)
-                ocrInterval = setInterval(runOCR, 2000);  
+                // OCR을 1분마다 실행
+                ocrInterval = setInterval(runOCR, 60000);  
 
                 startCaptureButton.disabled = true; // 버튼 비활성화
             } catch (err) {
-              //  alert("화면 공유 실패: " + err.message);
+                console.error("화면 공유 실패:", err.message);
             }
         });
 
-        // ✅ 2. OCR 실행 함수 (실시간으로 실행)
+        // ✅ 2. OCR 실행 함수 (1분마다 실행)
         async function runOCR() {
             if (isOCRRunning) return; // OCR이 실행 중이면 중복 실행 방지
             isOCRRunning = true;
@@ -58,7 +65,6 @@
             let cropWidth = 120;  // 너비 300px
             let cropHeight = 16; // 높이 100px
 
-
             // ✅ 특정 영역을 잘라서 cropCanvas에 복사
             let cropCtx = cropCanvas.getContext("2d");
             cropCanvas.width = cropWidth;
@@ -68,13 +74,14 @@
             // ✅ Tesseract.js로 OCR 실행 (비동기 처리)
             Tesseract.recognize(
                 cropCanvas,  // 전체가 아닌 특정 영역만 OCR 실행
-                "eng", // 한국어 + 영어 지원
+                "eng", // 영어로 OCR
                 {
                     logger: m => console.log(m),
-                    tessedit_char_whitelist: "0123456789[]()" // ✅ 숫자(0~9)만 인식하도록 설정
+                    tessedit_char_whitelist: "0123456789[]()" // 숫자와 괄호만 인식하도록 설정
                 }
             ).then(({ data: { text } }) => {
                 ocrResult.value = text; // OCR 결과 표시
+                processOCRResult(text); // OCR 결과 처리
                 isOCRRunning = false;  // OCR 실행 완료 후 다시 실행 가능
             }).catch(err => {
                 console.error("OCR 오류: ", err);
@@ -82,6 +89,23 @@
             });
         }
 
+        // ✅ OCR 결과에서 숫자 추출하고 차이 계산
+        function processOCRResult(text) {
+            // OCR 결과에서 숫자 추출 (예: 123123(12% 또는 123123[12% 형태로 추출)
+            let matches = text.match(/\d+[\(\[]/); // 예시: 123123( 또는 123123[
+            if (matches) {
+                let currentValue = parseInt(matches[0].replace(/[\(\[]/, ""));  // 괄호나 대괄호를 제거한 값
+                if (previousValue !== null) {
+                    // 이전 값과의 차이 계산
+                    let difference = currentValue - previousValue;
+                    differenceDisplay.innerText = difference;
+                }
+
+                // 이전 값 갱신
+                previousValue = currentValue;
+                previousValueDisplay.innerText = currentValue;
+            }
+        }
     </script>
 
 </body>
